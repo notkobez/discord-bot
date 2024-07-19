@@ -1,14 +1,15 @@
-import http
-from typing import List
+import http.client
+from typing import Dict, List
 import discord
 import os
+import json
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
 DISCORD_API_KEY: str = os.getenv("DISCORD_API_KEY")
-DOMAINR_API_KEY: str = os.getenv('DOMAINR_API_KEY')
+DOMAINR_API_KEY: str = os.getenv("DOMAINR_API_KEY")
 
 intents: discord.Intents = discord.Intents.default()
 intents.message_content = True
@@ -17,9 +18,11 @@ client: discord.Client = discord.Client(intents=intents)
 
 
 def get_domain_registration_status(domain: str) -> str:
-    conn = http.client.HTTPSConnection("domainr.p.rapidapi.com")
+    conn: http.client.HTTPSConnection = http.client.HTTPSConnection(
+        "domainr.p.rapidapi.com"
+    )
 
-    headers = {
+    headers: Dict[str, str] = {
         'x-rapidapi-key': DOMAINR_API_KEY,
         'x-rapidapi-host': "domainr.p.rapidapi.com"
     }
@@ -38,13 +41,25 @@ async def on_ready() -> None:
 
 
 @client.event
-async def on_message(message: str) -> None:
+async def on_message(message: discord.Message) -> None:
     if message.author == client.user:
         return
 
-    if message.content.startswith('/domain'):
-        message_tokens: List[str] = message.content.split(" ")
-        response = get_domain_registration_status(message_tokens[1])
-        await message.channel.send(response)
+    if message.content.startswith("/"):
+        tokens: List[str] = message.content.split(" ")
+        command: str = tokens[0][1:]
+        if command == "checkdomain":
+            if len(tokens) > 1:
+                domain = tokens[1]
+                status = get_domain_registration_status(domain)
+                status_data = json.loads(status)
+                registration_status = status_data["status"][0]["status"]
+                await message.channel.send(
+                    f"Domain {domain} is {registration_status}."
+                )
+            else:
+                await message.channel.send("Please provide a domain to check.")
+        else:
+            await message.channel.send(f"Unknown command: {command}")
 
 client.run(DISCORD_API_KEY)
